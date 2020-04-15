@@ -4,7 +4,11 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require('mongoose-encryption');
+const bcrypt = require("bcrypt");
+//const encrypt = require('mongoose-encryption');
+//const md5=require('md5');
+
+const saltRounds = 10;
 
 const app = express();
 app.set('view engine', 'ejs');
@@ -27,7 +31,8 @@ const userSchema = new mongoose.Schema({
   password: String
 });
 
-userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ['password']});
+//To  encrypt the database
+//userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ['password']});
 
 const User = new mongoose.model('user', userSchema);
 
@@ -62,9 +67,13 @@ app.route('/login')
     else{
       if(result){
         console.log(`Found user ${username}`);
-        if(result.password===password){
-          res.render('secrets');
-        }else res.send('password is incorrect');
+
+        bcrypt.compare(password, result.password, function(err, check) {
+          if(check){
+            res.render('secrets');
+          }else res.send('password is incorrect');
+        });
+
       }
       else{
         res.send('The user name is incorrect');
@@ -80,22 +89,28 @@ app.route('/register')
 })
 
 .post(function(req, res){
-  const newUser = new User({
-    email: req.body.username,
-    password: req.body.password
-  });
 
-  newUser.save(function(err){
-    if(err){
-      console.log(err);
-      res.render(err);
-    }
+  bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+    if(err) console.log(err);
     else{
-      console.log(req.body.username+' has been registered successfuly');
-      res.render('secrets');
+
+      const newUser = new User({
+        email: req.body.username,
+        password: hash
+      });
+
+      newUser.save(function(err){
+        if(err){
+          console.log(err);
+          res.render(err);
+        }
+        else{
+          console.log(req.body.username+' has been registered successfuly');
+          res.render('secrets');
+        }
+      });
     }
   });
-
 });
 
 app.listen(3000, function(req, res){
